@@ -14,9 +14,10 @@ def compute_morph_scores(df, columns=None):
 
     mean = grouped.mean()
     std = grouped.std()
-    summed = grouped.sum()
+    size = grouped.size()
 
-    std /= np.sqrt(summed)
+    norm = np.array(np.sqrt(size))
+    std = std.div(norm, axis=0)
 
     return mean[columns], std[columns]
 
@@ -80,7 +81,7 @@ def plot_behavioral_data(mean, std, sigmoid_curve=None, inflexion_point=None, ti
         ax0.set_xticks(morph)
         ax0.set_xlabel("% morph (alpha)")
         ax0.set_ylabel("response")
-        ax0.legend(loc="lower right")
+        ax0.legend()
 
         time_mean = mean["response time"]
         time_std = std["response time"]
