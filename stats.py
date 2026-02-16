@@ -43,12 +43,12 @@ def fit_sigmoid(mean):
     return popt, sigmoid(xdata, *popt)
 
 
-def find_inflexion(fitted_curve):
+def find_inflexion(fitted_curve, threshold=0.5):
     xinterp = np.linspace(0.05, 0.95, 1000)
     xvals = np.linspace(0.05, 0.95, 10)
     interpolated = np.interp(xinterp, xvals, fitted_curve)
 
-    point = xinterp[np.argwhere(np.diff(interpolated > 0.5))]
+    point = xinterp[np.argwhere(np.diff(interpolated > threshold))]
 
     if np.any(point):
         return point[0, 0]
