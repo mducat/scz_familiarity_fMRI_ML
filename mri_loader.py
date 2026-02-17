@@ -1,9 +1,12 @@
-
 import os
 
+import pandas as pd
+import numpy as np
+
 import nibabel
-from nilearn import datasets, image
-from nilearn.input_data import NiftiMasker, NiftiLabelsMasker, NiftiMapsMasker
+from nilearn import image
+from glob import glob
+
 
 confound_columns = \
     ['a_comp_cor_00', 'a_comp_cor_01', 'a_comp_cor_02', 'a_comp_cor_03',
@@ -12,80 +15,104 @@ confound_columns = \
      'rot_x', 'rot_y', 'rot_z']
 
 
+
 class MRI:
 
-    def __init__(self, filename, result_path):
-        self.data_path = os.path.dirname(filename)
-        self.filename = filename
-        self.result_path = result_path
-        assert os.path.exists(self.filename)
-        self._nifti_filename = None
-        self._data = None
+    def __init__(self, subject_id, run_id, folder=None):
+        if folder is None:
+            folder = "."
+
+        self.folder = folder
+        self.subject_id = subject_id
+        self.run_id = run_id
+        self.mri_file_prefix = self._get_prefix(subject_id, run_id)
+
+        self.mri_timestamps = None
         self._brain_mask = None
-        self._mask_indices = None
+        self._cleaned = None
+        self._labels = None
+        self._t_r = None
+
         self._low_pass = 0.08
         self._high_pass = 0.009
 
-        self._t_r = self.data.header.get_zooms()[3]
+    def load(self):
+        assert self.data is not None
+        assert self.brain_mask is not None
+        assert self.labels is not None
 
-        if self.is_preprocessed:
-            self._masker = NiftiMasker(mask_img=self.brain_mask, standardize=True, mask_strategy='epi')
+    def _get_prefix(self, subject_id, run_id):
+        return f"{self.folder}/Familiarity/sub-{subject_id}/func/sub-{subject_id}_task-morph_run-{run_id}"
 
-            self.dataset = datasets.fetch_atlas_harvard_oxford('cort-maxprob-thr25-2mm')
-            self.atlas_filename = self.dataset.filename
-            self.labels = self.dataset.labels[1:]
+    @property
+    def labels(self):
+        if self._labels is None:
+            record_length = self.data.shape[3]
+            time_interval = self._t_r
 
-            self._parcelizer = NiftiLabelsMasker(labels_img=self.atlas_filename, standardize=True,
-                                                 memory='nilearn_cache', verbose=5, mask_img=self.brain_mask)
+            self.mri_timestamps = np.arange(time_interval, (record_length + 1) * time_interval, time_interval)
+
+            labels = pd.read_csv(f"{self.folder}/labels/labels_{self.subject_id}.csv")
+            labels = labels[labels["run"] == self.run_id]
+
+            times_df = pd.DataFrame({'mri_timestamps': np.astype(self.mri_timestamps * 1000, np.int64)})
+
+            self._labels = pd.merge_asof(times_df, labels, left_on='mri_timestamps', right_on='run time', direction='backward')
+
+        return self._labels
 
     @property
     def confounds(self):
-        import pandas as pd
-        if self.is_preprocessed:
-            return pd.read_csv(self._get_file('desc-confounds_timeseries.tsv'), delimiter='\t')
-        else:
-            return None
-
-    @property
-    def data(self):
-        if self._data is None:
-            self._data = nibabel.load(self.filename)
-
-        return self._data
+        return pd.read_csv(self._get_file('desc-confounds_timeseries.tsv'), delimiter='\t')
 
     @property
     def brain_mask(self):
-        if not self.is_preprocessed:
-            return None
-
         if self._brain_mask is None:
             self._brain_mask = nibabel.load(self._get_file('brain_mask.nii.gz'))
 
         return self._brain_mask
 
+    @property
+    def preprocessed(self):
+        data = nibabel.load(self._get_file('preproc_bold.nii.gz'))
+        self._t_r = data.header.get_zooms()[3]
+
+        return data
+
     def _get_file(self, pattern):
-        files = os.listdir(self.result_path)
-
-        for file in files:
-            if file.find(pattern) > -1:
-                return os.path.join(self.result_path, file)
-
-        return None
-
-    @property
-    def is_preprocessed(self):
-        files = os.listdir(self.result_path)
-        for file in files:
-            if file.find('MNI152') > -1:
-                return True
-        print("Files should be preprocessed via fmriprep first!")
-        return False
-
-    @property
-    def cleaned(self):
-        if not self.is_preprocessed:
+        files = glob(f"{self.mri_file_prefix}*{pattern}")
+        if not files or len(files) > 1:
             return None
+        return files[0]
 
-        confound_matrix = self.confounds[self.confound_columns].values
-        return image.clean_img(self.preprocessed, confounds=confound_matrix,
-            detrend=True, low_pass=self._low_pass, high_pass=self._high_pass, t_r=self._t_r)
+    @property
+    def data(self):
+        if self._cleaned is None and os.path.exists(self.cache_path):
+            self._cleaned = nibabel.load(self.cache_path)
+            self._t_r = self._cleaned.header.get_zooms()[3]
+
+        if self._cleaned is None:
+            taken = set(confound_columns)
+            present = set(self.confounds.columns)
+            index = list(taken & present)
+
+            confound_matrix = self.confounds[index].values
+            data = self.preprocessed
+
+            self._cleaned = image.clean_img(data,
+                                            confounds=confound_matrix,
+                                            standardize='zscore_sample',
+                                            detrend=True,
+                                            low_pass=self._low_pass,
+                                            high_pass=self._high_pass,
+                                            t_r=self._t_r)
+
+        return self._cleaned
+
+    @property
+    def cache_path(self):
+        return f"{self.folder}/cache/sub-{self.subject_id}-run-{self.run_id}.nii.gz"
+
+    def cache(self):
+        os.makedirs(f"{self.folder}/cache", exist_ok=True)
+        nibabel.save(self.data, self.cache_path)
