@@ -7,6 +7,7 @@ import nibabel
 from nilearn import image
 from glob import glob
 
+from typing_extensions import deprecated
 
 confound_columns = \
     ['a_comp_cor_00', 'a_comp_cor_01', 'a_comp_cor_02', 'a_comp_cor_03',
@@ -29,8 +30,10 @@ class MRI:
 
         self.mri_timestamps = None
         self._brain_mask = None
+        self._raw_labels = None
+        self._mri_labels = None
+        self._bg_mask = None
         self._cleaned = None
-        self._labels = None
         self._t_r = None
 
         self._low_pass = 0.08
@@ -38,28 +41,38 @@ class MRI:
 
     def load(self):
         assert self.data is not None
-        assert self.brain_mask is not None
         assert self.labels is not None
+        assert self.background is not None
+        assert self.brain_mask is not None
 
     def _get_prefix(self, subject_id, run_id):
         return f"{self.folder}/Familiarity/sub-{subject_id}/func/sub-{subject_id}_task-morph_run-{run_id}"
 
     @property
     def labels(self):
-        if self._labels is None:
+        if self._raw_labels is None:
+            labels = pd.read_csv(f"{self.folder}/labels/labels_{self.subject_id}.csv")
+            labels = labels[labels["run"] == self.run_id]
+
+            self._raw_labels = labels
+
+        return self._raw_labels
+
+    @property
+    @deprecated("Interpolation of labels with GLM doesn't work")
+    def mri_labels(self):
+        if self._mri_labels is None:
             record_length = self.data.shape[3]
             time_interval = self._t_r
 
             self.mri_timestamps = np.arange(time_interval, (record_length + 1) * time_interval, time_interval)
 
-            labels = pd.read_csv(f"{self.folder}/labels/labels_{self.subject_id}.csv")
-            labels = labels[labels["run"] == self.run_id]
-
             times_df = pd.DataFrame({'mri_timestamps': np.astype(self.mri_timestamps * 1000, np.int64)})
 
-            self._labels = pd.merge_asof(times_df, labels, left_on='mri_timestamps', right_on='run time', direction='backward')
+            labels = self.labels
+            self._mri_labels = pd.merge_asof(times_df, labels, left_on='mri_timestamps', right_on='run time', direction='backward')
 
-        return self._labels
+        return self._mri_labels
 
     @property
     def confounds(self):
@@ -71,6 +84,14 @@ class MRI:
             self._brain_mask = nibabel.load(self._get_file('brain_mask.nii.gz'))
 
         return self._brain_mask
+
+    @property
+    def background(self):
+        if self._bg_mask is None:
+            path = f"{self.folder}/Familiarity/sub-{self.subject_id}/anat/sub-{self.subject_id}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
+            self._bg_mask = nibabel.load(path)
+
+        return self._bg_mask
 
     @property
     def preprocessed(self):
