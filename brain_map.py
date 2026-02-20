@@ -74,13 +74,11 @@ def find_region_names(coords, atlas_img, labels=None):
     atlas_data = atlas_img.get_fdata()
     check_labels_from_atlas = np.unique(atlas_data)
 
-    if labels is not None:
-        names = []
-        if not isinstance(labels, collections.Iterable):
-            labels = np.asarray(labels)
+    names = []
 
-    if isinstance(labels, collections.Iterable) and \
-            isinstance(check_labels_from_atlas, collections.Iterable):
+    if labels is not None:
+        labels = np.asarray(labels)
+
         if len(check_labels_from_atlas) != len(labels):
             warnings.warn("The number of labels provided does not match "
                           "with number of unique labels with atlas image.",
@@ -103,7 +101,7 @@ def find_region_names(coords, atlas_img, labels=None):
         index = atlas_data[coord_]
         new_labels.append(index)
         if labels is not None:
-            names.append(labels[index])
+            names.append(str(labels[int(index)]))
 
     if labels is not None:
         return new_labels, names
