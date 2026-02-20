@@ -3,10 +3,13 @@ import os
 import pandas as pd
 import numpy as np
 
+from stats import *
+
 import nibabel
 from nilearn import image
 from glob import glob
 
+from nilearn.image import concat_imgs
 from typing_extensions import deprecated
 
 confound_columns = \
@@ -15,6 +18,66 @@ confound_columns = \
      'cosine03', 'cosine04', 'cosine05', 'trans_x', 'trans_y', 'trans_z',
      'rot_x', 'rot_y', 'rot_z']
 
+
+class Subject:
+
+    def __init__(self, subject_id, run_ids, folder=None):
+        self.subject_id = subject_id
+        self.run_ids = run_ids
+        self._dataset = [MRI(subject_id, run_id, folder=folder) for run_id in run_ids]
+
+    def load(self):
+        [mri.load() for mri in self._dataset]
+
+    def compute_inflexions(self, low_percentile=25, high_percentile=75):
+        all_labels = pd.concat([ds.labels for ds in self._dataset], ignore_index=True)
+
+        cur_mean, cur_std = compute_morph_scores(all_labels)
+
+        _, fitted_curve = fit_sigmoid(cur_mean)
+
+        low_quartile = np.percentile(fitted_curve, low_percentile)
+        low_inflexion = find_inflexion(fitted_curve, low_quartile)
+
+        high_quartile = np.percentile(fitted_curve, high_percentile)
+        high_inflexion = find_inflexion(fitted_curve, high_quartile)
+
+        return low_inflexion, high_inflexion
+
+    @property
+    def brain_mask(self):
+        return self._dataset[0].brain_mask
+
+    @property
+    def background(self):
+        return self._dataset[0].background
+
+    @property
+    def repetition_time(self):
+        return self._dataset[0]._t_r
+
+    def get_data(self):
+        images = []
+        times = []
+        labels = []
+
+        last_timestamp = 0
+
+        for run in self._dataset:
+            images.append(run.data)
+
+            times.append(run.labels["run time"] + last_timestamp)
+            last_timestamp += run.labels["run time"].values[-1]
+
+            labels.append(run.labels["morph level"].values)
+
+        images = concat_imgs(images)
+
+        # convert ms to seconds
+        times = np.concatenate(times) / 1000
+        labels = np.concatenate(labels)
+
+        return images, times, labels
 
 
 class MRI:
