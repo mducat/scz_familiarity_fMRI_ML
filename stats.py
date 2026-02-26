@@ -55,6 +55,12 @@ def find_inflexion(fitted_curve, threshold=0.5):
     return None
 
 
+def contrast_name(classes):
+    positive = ' + '.join(classes["+"])
+    negative = ' + '.join(classes["-"])
+    return f"{positive} > {negative}"
+
+
 def plot_behavioral_data(mean, std, sigmoid_curve=None, inflexion_point=None, title=None):
 
     morph = mean.index

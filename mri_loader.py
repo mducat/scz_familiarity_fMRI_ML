@@ -35,12 +35,13 @@ class Subject:
         cur_mean, cur_std = compute_morph_scores(all_labels)
 
         _, fitted_curve = fit_sigmoid(cur_mean)
+        curve = np.array(cur_mean["response"])
 
         low_quartile = np.percentile(fitted_curve, low_percentile)
-        low_inflexion = find_inflexion(fitted_curve, low_quartile)
+        low_inflexion = find_inflexion(curve, low_quartile)
 
         high_quartile = np.percentile(fitted_curve, high_percentile)
-        high_inflexion = find_inflexion(fitted_curve, high_quartile)
+        high_inflexion = find_inflexion(curve, high_quartile)
 
         return low_inflexion, high_inflexion
 
@@ -109,7 +110,7 @@ class MRI:
         assert self.brain_mask is not None
 
     def _get_prefix(self, subject_id, run_id):
-        return f"{self.folder}/Familiarity/sub-{subject_id}/func/sub-{subject_id}_task-morph_run-{run_id}"
+        return f"{self.folder}/Familiarity/sub-{subject_id:02}/func/sub-{subject_id:02}_task-morph_run-{run_id}"
 
     @property
     def labels(self):
@@ -151,7 +152,7 @@ class MRI:
     @property
     def background(self):
         if self._bg_mask is None:
-            path = f"{self.folder}/Familiarity/sub-{self.subject_id}/anat/sub-{self.subject_id}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
+            path = f"{self.folder}/Familiarity/sub-{self.subject_id:02}/anat/sub-{self.subject_id:02}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
             self._bg_mask = nibabel.load(path)
 
         return self._bg_mask
@@ -166,7 +167,7 @@ class MRI:
     def _get_file(self, pattern):
         files = glob(f"{self.mri_file_prefix}*{pattern}")
         if not files or len(files) > 1:
-            return None
+            raise ValueError(f"File not found for {pattern=} in {self.mri_file_prefix=}")
         return files[0]
 
     @property
