@@ -83,9 +83,14 @@ class Subject:
 
 class MRI:
 
-    def __init__(self, subject_id, run_id, folder=None):
+    def __init__(self, subject_id, run_id, folder=None, sub_folder=True):
         if folder is None:
             folder = "."
+
+        self._sub_folder = ''
+
+        if sub_folder:
+            self._sub_folder = '/Familiarity'
 
         self.folder = folder
         self.subject_id = subject_id
@@ -110,7 +115,7 @@ class MRI:
         assert self.brain_mask is not None
 
     def _get_prefix(self, subject_id, run_id):
-        return f"{self.folder}/Familiarity/sub-{subject_id:02}/func/sub-{subject_id:02}_task-morph_run-{run_id}"
+        return f"{self.folder}{self._sub_folder}/sub-{subject_id:02}/func/sub-{subject_id:02}_task-morph_run-{run_id}"
 
     @property
     def labels(self):
@@ -152,7 +157,7 @@ class MRI:
     @property
     def background(self):
         if self._bg_mask is None:
-            path = f"{self.folder}/Familiarity/sub-{self.subject_id:02}/anat/sub-{self.subject_id:02}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
+            path = f"{self.folder}{self._sub_folder}/sub-{self.subject_id:02}/anat/sub-{self.subject_id:02}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
             self._bg_mask = nibabel.load(path)
 
         return self._bg_mask
