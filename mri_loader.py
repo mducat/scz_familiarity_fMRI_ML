@@ -19,6 +19,9 @@ confound_columns = \
      'rot_x', 'rot_y', 'rot_z']
 
 
+reduced_columns = ['trans_x', 'trans_y', 'trans_z', 'rot_x', 'rot_y', 'rot_z']
+
+
 class Subject:
 
     def __init__(self, subject_id, run_ids, folder=None):
@@ -83,11 +86,14 @@ class Subject:
 
 class MRI:
 
-    def __init__(self, subject_id, run_id, folder=None, sub_folder=True):
+    def __init__(self, subject_id, run_id, folder=None, sub_folder=True, confound_mode='full'):
         if folder is None:
             folder = "."
 
         self._sub_folder = ''
+
+        confound_cols = {"full": confound_columns, "reduced": reduced_columns}
+        self.confounds_columns = confound_cols[confound_mode]
 
         if sub_folder:
             self._sub_folder = '/Familiarity'
