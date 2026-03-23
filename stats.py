@@ -1,3 +1,4 @@
+from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,8 +31,8 @@ def sigmoid(x, L, x0, k, b):
 def fit_sigmoid(mean):
     # returns the sigmoid parameters + standard curve
     # overflow in curve_fit
-    import warnings
-    warnings.filterwarnings("ignore")
+    # import warnings
+    # warnings.filterwarnings("ignore")
 
     ydata = np.array(mean["response"])
     # fit scale is in 0.05-0.95, csv is in scale 5-95
@@ -56,9 +57,56 @@ def find_inflexion(fitted_curve, threshold=0.5):
 
 
 def contrast_name(classes):
-    positive = ' + '.join(classes["+"])
-    negative = ' + '.join(classes["-"])
-    return f"{positive} > {negative}"
+    positive = 'rest'
+    negative = 'rest'
+    if '+' in classes:
+        positive = ' + '.join(classes["+"])
+    if '-' in classes:
+        negative = ' + '.join(classes["-"])
+    return ' > '.join([positive, negative])
+
+
+def parse_contrast(contrasts, low_inflexion, high_inflexion):
+    low_contrast_columns = []
+    high_contrast_columns = []
+    undecided_contrast_columns = []
+    button_contrast_columns = []
+    unpressed_contrast_columns = []
+
+    morph_columns = defaultdict(list)
+
+    for key, column in contrasts.items():
+        try:
+            key_numeric = float(key.split("_")[0]) / 100
+            key_parsed = str(int(key_numeric * 100))
+            morph_columns[key_parsed].append(column)
+
+            resp = int(key.split("_")[-1])
+            if resp == 1:
+                button_contrast_columns.append(column)
+            else:
+                unpressed_contrast_columns.append(column)
+
+            if key_numeric < low_inflexion:
+                low_contrast_columns.append(column)
+
+            elif key_numeric > high_inflexion:
+                high_contrast_columns.append(column)
+
+            else:
+                undecided_contrast_columns.append(column)
+
+        except ValueError:
+            continue
+
+    contrasts["low"] = np.sum(low_contrast_columns, axis=0)
+    contrasts["high"] = np.sum(high_contrast_columns, axis=0)
+    contrasts["undecided"] = np.sum(undecided_contrast_columns, axis=0)
+    contrasts["button"] = np.sum(button_contrast_columns, axis=0)
+    contrasts["unpressed"] = np.sum(unpressed_contrast_columns, axis=0)
+
+    for key, cols in morph_columns.items():
+        contrasts[key] = np.sum(cols, axis=0)
 
 
 def plot_behavioral_data(mean, std, sigmoid_curve=None, inflexion_point=None, title=None):

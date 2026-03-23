@@ -24,10 +24,14 @@ reduced_columns = ['trans_x', 'trans_y', 'trans_z', 'rot_x', 'rot_y', 'rot_z']
 
 class Subject:
 
-    def __init__(self, subject_id, run_ids, folder=None):
+    def __init__(self, subject_id, run_ids,
+                 folder=None,
+                 confound_mode='full',
+                 volumes_offset=0):
+
         self.subject_id = subject_id
         self.run_ids = run_ids
-        self._dataset = [MRI(subject_id, run_id, folder=folder) for run_id in run_ids]
+        self._dataset = [MRI(subject_id, run_id, folder=folder, confound_mode=confound_mode, volumes_offset=volumes_offset) for run_id in run_ids]
 
     def load(self):
         [mri.load() for mri in self._dataset]
@@ -49,6 +53,17 @@ class Subject:
         return low_inflexion, high_inflexion
 
     @property
+    def sample_mask(self):
+        masks = []
+        last_index = 0
+
+        for ds in self._dataset:
+            masks.append(ds.sample_mask + last_index)
+            last_index += ds.sample_mask[-1]
+
+        return np.concatenate(masks)
+
+    @property
     def brain_mask(self):
         return self._dataset[0].brain_mask
 
@@ -60,7 +75,7 @@ class Subject:
     def repetition_time(self):
         return self._dataset[0]._t_r
 
-    def get_data(self):
+    def get_data(self, labels_col="morph level", morph_response=False):
         images = []
         times = []
         labels = []
@@ -73,7 +88,14 @@ class Subject:
             times.append(run.labels["run time"] + last_timestamp)
             last_timestamp += run.labels["run time"].values[-1]
 
-            labels.append(run.labels["morph level"].values)
+            if not morph_response:
+                labels.append(run.labels[labels_col].values)
+            else:
+                original_labels = run.labels[labels_col].values
+                responses = run.labels["response"].values
+
+                new_labels = [f'{label}_{resp}' for label, resp in zip(original_labels, responses)]
+                labels.append(new_labels)
 
         images = concat_imgs(images)
 
@@ -86,14 +108,21 @@ class Subject:
 
 class MRI:
 
-    def __init__(self, subject_id, run_id, folder=None, sub_folder=True, confound_mode='full'):
+    def __init__(self, subject_id, run_id,
+                 folder=None,
+                 sub_folder=True,
+                 confound_mode='full',
+                 volumes_offset=0):
+
         if folder is None:
             folder = "."
 
         self._sub_folder = ''
+        self.volumes_offset = volumes_offset
 
         confound_cols = {"full": confound_columns, "reduced": reduced_columns}
         self.confounds_columns = confound_cols[confound_mode]
+        self.confounds_mode = confound_mode
 
         if sub_folder:
             self._sub_folder = '/Familiarity'
@@ -151,7 +180,14 @@ class MRI:
 
     @property
     def confounds(self):
-        return pd.read_csv(self._get_file('desc-confounds_timeseries.tsv'), delimiter='\t')
+        return pd.read_csv(self._get_file('desc-confounds_timeseries.tsv'), delimiter='\t').iloc[self.volumes_offset:].reset_index(drop=True)
+
+    @property
+    def sample_mask(self):
+        cf_df = self.confounds
+        outlier_cols = [col for col in cf_df.columns if col.startswith('motion_outlier')]
+        outlier_mask = cf_df[outlier_cols].any(axis=1)
+        return np.where(~outlier_mask)[0]
 
     @property
     def brain_mask(self):
@@ -187,10 +223,18 @@ class MRI:
             self._cleaned = nibabel.load(self.cache_path)
             self._t_r = self._cleaned.header.get_zooms()[3]
 
+            data = self._cleaned.get_fdata()
+            data_trimmed = data[:, :, :, self.volumes_offset:]
+            new_img = nibabel.Nifti1Image(data_trimmed, self._cleaned.affine, self._cleaned.header)
+            self._cleaned = new_img
+
         if self._cleaned is None:
-            taken = set(confound_columns)
+            taken = set(self.confounds_columns)
             present = set(self.confounds.columns)
             index = list(taken & present)
+            missing = list(taken - present)
+            if missing:
+                print(f"Confound columns are missing: {', '.join(missing)}")
 
             confound_matrix = self.confounds[index].values
             data = self.preprocessed
@@ -207,8 +251,10 @@ class MRI:
 
     @property
     def cache_path(self):
-        return f"{self.folder}/cache/sub-{self.subject_id}-run-{self.run_id}.nii.gz"
+        return f"{self.folder}/cache/{self.confounds_mode}_confounds/sub-{self.subject_id}-run-{self.run_id}.nii.gz"
 
-    def cache(self):
+    def cache(self, override_cache=False):
         os.makedirs(f"{self.folder}/cache", exist_ok=True)
-        nibabel.save(self.data, self.cache_path)
+        if not os.path.exists(self.cache_path) or override_cache:
+            nibabel.save(self.data, self.cache_path)
+
