@@ -4,6 +4,7 @@ import os
 import shutil
 from glob import glob
 
+"""
 sort_contrast_path = "graphs/contrasts/by_contrasts"
 sort_sub_path = "graphs/contrasts/by_subjects"
 
@@ -24,3 +25,14 @@ for file in glob("graphs/contrasts/*"):
 
     shutil.copy(file, f"{sort_contrast_path}/{contrast_id}")
     shutil.copy(file, f"{sort_sub_path}/{subject_id}")
+"""
+
+for file in glob("brute_force/*/regions/*"):
+    if not os.path.isfile(file):
+        continue
+
+    ftype = file.split("\\")[1]
+    fname = file.split("\\")[3]
+
+    shutil.copy(file, f"brute_force/all_regions/{ftype}_{fname}")
+

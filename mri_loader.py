@@ -75,7 +75,16 @@ class Subject:
     def repetition_time(self):
         return self._dataset[0]._t_r
 
-    def get_data(self, labels_col="morph level", morph_response=False):
+    def get_durations(self, fill_nan=1.0):
+        durations = []
+
+        for run in self._dataset:
+            d = np.nan_to_num(run.labels["response time"].values, nan=fill_nan)
+            durations.append(d)
+
+        return np.concatenate(durations)
+
+    def get_data(self, labels_col="morph level", morph_response=False, shift_onset_response=False, scale=1):
         images = []
         times = []
         labels = []
@@ -85,8 +94,15 @@ class Subject:
         for run in self._dataset:
             images.append(run.data)
 
-            times.append(run.labels["run time"] + last_timestamp)
-            last_timestamp += run.labels["run time"].values[-1]
+            if shift_onset_response:
+                r_time = run.labels["run time"].values
+                resp_time = np.nan_to_num(run.labels["response time"].values)
+
+                times.append(r_time + resp_time + last_timestamp)
+            else:
+                times.append(run.labels["run time"] + last_timestamp)
+
+            last_timestamp += (run.data.shape[3] * self.repetition_time) * 1000
 
             if not morph_response:
                 labels.append(run.labels[labels_col].values)
@@ -98,6 +114,7 @@ class Subject:
                 labels.append(new_labels)
 
         images = concat_imgs(images)
+        images = image.math_img(f"img * {scale}", img=images)
 
         # convert ms to seconds
         times = np.concatenate(times) / 1000
