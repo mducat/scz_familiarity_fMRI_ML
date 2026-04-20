@@ -18,7 +18,7 @@ class AtlasBrowser:  # noqa: D414
     ----------
     atlas : str
         The name of the atlas to use. Supported atlases are:
-        - "AAL" (automated anatomical labelling atlas [1])
+        - "AAL" (automated anatomical labeling atlas [1])
         - "AAL3" (automated anatomical labeling atlas 3 [2]; 1mm^3 voxel
           version)
         - "HCPEx" (Human Connectome Project extended parcellation atlas [3])

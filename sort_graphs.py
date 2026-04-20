@@ -4,15 +4,14 @@ import os
 import shutil
 from glob import glob
 
-"""
-sort_contrast_path = "graphs/contrasts/by_contrasts"
-sort_sub_path = "graphs/contrasts/by_subjects"
+sort_contrast_path = "graphs/contrasts_glass/by_contrasts"
+sort_sub_path = "graphs/contrasts_glass/by_subjects"
 
 os.makedirs(sort_sub_path, exist_ok=True)
 os.makedirs(sort_contrast_path, exist_ok=True)
 
 
-for file in glob("graphs/contrasts/*"):
+for file in glob("graphs/contrasts_glass/*"):
     if not os.path.isfile(file):
         continue
 
@@ -25,8 +24,8 @@ for file in glob("graphs/contrasts/*"):
 
     shutil.copy(file, f"{sort_contrast_path}/{contrast_id}")
     shutil.copy(file, f"{sort_sub_path}/{subject_id}")
-"""
 
+"""
 for file in glob("brute_force/*/regions/*"):
     if not os.path.isfile(file):
         continue
@@ -35,4 +34,4 @@ for file in glob("brute_force/*/regions/*"):
     fname = file.split("\\")[3]
 
     shutil.copy(file, f"brute_force/all_regions/{ftype}_{fname}")
-
+"""

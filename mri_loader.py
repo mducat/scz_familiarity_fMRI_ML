@@ -31,6 +31,7 @@ class Subject:
 
         self.subject_id = subject_id
         self.run_ids = run_ids
+        self.folder = folder
         self._dataset = [MRI(subject_id, run_id, folder=folder, confound_mode=confound_mode, volumes_offset=volumes_offset) for run_id in run_ids]
 
     def load(self):
@@ -75,16 +76,31 @@ class Subject:
     def repetition_time(self):
         return self._dataset[0]._t_r
 
-    def get_durations(self, fill_nan=1.0):
+    def get_durations(self, fill_nan=2.0, exclude_couples=False):
         durations = []
 
         for run in self._dataset:
-            d = np.nan_to_num(run.labels["response time"].values, nan=fill_nan)
+            run_labels = run.labels
+
+            if exclude_couples:
+                run_labels = run_labels[~run_labels['couple'].isin(self.get_excluded_couples())]
+
+            d = np.nan_to_num(run_labels["response time"].values, nan=fill_nan)
             durations.append(d)
 
         return np.concatenate(durations)
 
-    def get_data(self, labels_col="morph level", morph_response=False, shift_onset_response=False, scale=1):
+    def get_excluded_couples(self):
+        with open(f"{self.folder}/labels/exclusion/couples_{self.subject_id}.csv") as f:
+            couples_data = f.readlines()
+        return [int(float(line.strip())) for line in couples_data if line.strip()]
+
+    def get_data(self,
+                 labels_col="morph level",
+                 morph_response=False,
+                 shift_onset_response=False,
+                 exclude_couples=False,
+                 scale=1):
         images = []
         times = []
         labels = []
@@ -94,21 +110,26 @@ class Subject:
         for run in self._dataset:
             images.append(run.data)
 
+            run_labels = run.labels
+
+            if exclude_couples:
+                run_labels = run_labels[~run_labels['couple'].isin(self.get_excluded_couples())]
+
             if shift_onset_response:
-                r_time = run.labels["run time"].values
-                resp_time = np.nan_to_num(run.labels["response time"].values)
+                r_time = run_labels["run time"].values
+                resp_time = np.nan_to_num(run_labels["response time"].values)
 
                 times.append(r_time + resp_time + last_timestamp)
             else:
-                times.append(run.labels["run time"] + last_timestamp)
+                times.append(run_labels["run time"] + last_timestamp)
 
             last_timestamp += (run.data.shape[3] * self.repetition_time) * 1000
 
             if not morph_response:
-                labels.append(run.labels[labels_col].values)
+                labels.append(run_labels[labels_col].values)
             else:
-                original_labels = run.labels[labels_col].values
-                responses = run.labels["response"].values
+                original_labels = run_labels[labels_col].values
+                responses = run_labels["response"].values
 
                 new_labels = [f'{label}_{resp}' for label, resp in zip(original_labels, responses)]
                 labels.append(new_labels)
