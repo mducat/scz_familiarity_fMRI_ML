@@ -9,8 +9,8 @@ subs = set(range(1,34))
 still_fucked = [1, 3, 13, 22, 32, 33]
 
 
-for sub in subs:  # [11,12,13]:
-    for run in [5]:  # [1,2,3,4,5]:
+for sub in [3]:  # [11,12,13]:
+    for run in [4]:  # [1,2,3,4,5]:
 
         print(f'clean {sub} run {run}')
 

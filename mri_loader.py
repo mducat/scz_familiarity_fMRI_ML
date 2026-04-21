@@ -10,7 +10,6 @@ from nilearn import image
 from glob import glob
 
 from nilearn.image import concat_imgs
-from typing_extensions import deprecated
 
 confound_columns = \
     ['a_comp_cor_00', 'a_comp_cor_01', 'a_comp_cor_02', 'a_comp_cor_03',
@@ -201,7 +200,7 @@ class MRI:
         return self._raw_labels
 
     @property
-    @deprecated("Interpolation of labels with GLM doesn't work")
+    # @deprecated("Interpolation of labels with GLM doesn't work")
     def mri_labels(self):
         if self._mri_labels is None:
             record_length = self.data.shape[3]
