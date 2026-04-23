@@ -25,13 +25,18 @@ class Subject:
 
     def __init__(self, subject_id, run_ids,
                  folder=None,
+                 use_cache=True,
                  confound_mode='full',
                  volumes_offset=0):
 
         self.subject_id = subject_id
         self.run_ids = run_ids
         self.folder = folder
-        self._dataset = [MRI(subject_id, run_id, folder=folder, confound_mode=confound_mode, volumes_offset=volumes_offset) for run_id in run_ids]
+        self._dataset = [MRI(subject_id, run_id,
+                             use_cache=use_cache,
+                             folder=folder,
+                             confound_mode=confound_mode,
+                             volumes_offset=volumes_offset) for run_id in run_ids]
 
     def load(self):
         [mri.load() for mri in self._dataset]
@@ -148,6 +153,7 @@ class MRI:
     def __init__(self, subject_id, run_id,
                  folder=None,
                  sub_folder=True,
+                 use_cache=True,
                  confound_mode='full',
                  volumes_offset=0):
 
@@ -169,6 +175,8 @@ class MRI:
         self.run_id = run_id
         self.mri_file_prefix = self._get_prefix(subject_id, run_id)
 
+        self._use_cache = use_cache
+
         self.mri_timestamps = None
         self._brain_mask = None
         self._raw_labels = None
@@ -177,6 +185,8 @@ class MRI:
         self._cleaned = None
         self._t_r = None
 
+        self._standardize = "zscore_sample"
+        self._detrend = True
         self._low_pass = 0.08
         self._high_pass = 0.009
 
@@ -256,7 +266,7 @@ class MRI:
 
     @property
     def data(self):
-        if self._cleaned is None and os.path.exists(self.cache_path):
+        if self._cleaned is None and os.path.exists(self.cache_path) and self._use_cache:
             self._cleaned = nibabel.load(self.cache_path)
             self._t_r = self._cleaned.header.get_zooms()[3]
 
@@ -278,8 +288,8 @@ class MRI:
 
             self._cleaned = image.clean_img(data,
                                             confounds=confound_matrix,
-                                            standardize='zscore_sample',
-                                            detrend=True,
+                                            standardize=self._standardize,
+                                            detrend=self._detrend,
                                             low_pass=self._low_pass,
                                             high_pass=self._high_pass,
                                             t_r=self._t_r)

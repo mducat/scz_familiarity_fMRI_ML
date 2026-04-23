@@ -158,9 +158,14 @@ def plot_behavioral_data(mean, std, sigmoid_curve=None, inflexion_point=None, ti
     plt.show()
 
 
-def plot_r2(r2_values):
+def plot_r2(r2_values, title=None):
+    if title is None:
+        title = ""
+    else:
+        title = ", " + title
+
     fig = plt.figure(figsize=(14, 10))
-    fig.suptitle(f"R² Values Distribution (n={len(r2_values)})", fontsize=14, fontweight="bold")
+    fig.suptitle(f"R² Values Distribution (n={len(r2_values)}) {title}", fontsize=14, fontweight="bold")
     gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.3)
 
     ax1 = fig.add_subplot(gs[0, 0])
@@ -185,7 +190,7 @@ def plot_r2(r2_values):
     ax2.legend(fontsize=9)
 
     ax3 = fig.add_subplot(gs[1, 0])
-    ax3.boxplot(r2_values, vert=False, patch_artist=True,
+    """ax3.boxplot(r2_values, vert=False, patch_artist=True,
                 boxprops=dict(facecolor="steelblue", alpha=0.5),
                 medianprops=dict(color="orange", linewidth=2))
     sample = np.random.choice(r2_values, size=min(500, len(r2_values)), replace=False)
@@ -193,7 +198,34 @@ def plot_r2(r2_values):
                 alpha=0.15, color="steelblue", s=10, zorder=3)
     ax3.set_title("Box + Strip Plot")
     ax3.set_xlabel("R²")
-    ax3.set_yticks([])
+    ax3.set_yticks([])"""
+    violin = ax3.violinplot(
+        r2_values,
+        positions=[1],
+        showmedians=True,
+        showextrema=True,
+        widths=0.6,
+        vert=False
+    )
+    ax3.boxplot(r2_values, vert=False, patch_artist=True,
+                boxprops=dict(facecolor="steelblue", alpha=0.5))
+
+    for body in violin["bodies"]:
+        body.set_facecolor("#4C72B0")
+        body.set_edgecolor("black")
+        body.set_alpha(0.8)
+
+    violin["cmedians"].set_color("red")
+    violin["cmedians"].set_linewidth(2)
+
+    violin["cmaxes"].set_color("black")
+    violin["cmins"].set_color("black")
+    violin["cbars"].set_color("black")
+
+    ax3.set_title("Distribution")
+    ax3.set_xlabel("R²", fontsize=12)
+    ax3.set_yticks([1])
+    ax3.set_yticklabels(["Model"])
 
     ax4 = fig.add_subplot(gs[1, 1])
     sorted_vals = np.sort(r2_values)
@@ -218,8 +250,7 @@ def plot_r2(r2_values):
     )
     fig.text(0.5, 0.01, stats_text, ha="center", fontsize=9,
              bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.8))
-
-    plt.show()
+    return fig
 
 
 def carpet_plot(fmri_img, mask_img, t_r=2.4, standardize=True,
@@ -281,17 +312,16 @@ def carpet_plot(fmri_img, mask_img, t_r=2.4, standardize=True,
     cbar.set_label("Signal\nIntensity", fontsize=8)
 
     plt.tight_layout()
-    plt.show()
 
     return fig
 
 
 def plot_timeseries_list(*timeseries, **kwargs):
     data = np.array([*timeseries])
-    plot_timeseries(data, **kwargs)
+    return plot_timeseries(data, **kwargs)
 
 
-def plot_timeseries(timeseries, labels=None, repetition_time=None, events=None):
+def plot_timeseries(timeseries, labels=None, repetition_time=None, events=None, title=None):
 
     assert repetition_time is not None, "repetition_time is None"
 
@@ -351,11 +381,16 @@ def plot_timeseries(timeseries, labels=None, repetition_time=None, events=None):
 
     ax.legend(unique_handles, unique_labels, loc="upper right", bbox_to_anchor=(1.15, 1))
 
+    if title is None:
+        title = ""
+    else:
+        title = ", " + title
+
     ax.set_xlabel(f"Time (Seconds)")
     ax.set_ylabel("BOLD Signal")
-    ax.set_title("fMRI Timeseries with Event Onsets")
+    ax.set_title(f"fMRI Timeseries with Event Onsets {title}")
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def generate_motor_mask(merged=True, override_roi=None, folder='.'):
@@ -373,7 +408,7 @@ def generate_motor_mask(merged=True, override_roi=None, folder='.'):
     if override_roi:
         ROI = override_roi
 
-    sample = MRI(1, 1).data
+    sample = MRI(1, 1, folder=folder).data
     inv_affine = np.linalg.inv(sample.affine)
 
     masks = {}
@@ -417,3 +452,62 @@ def generate_motor_mask(merged=True, override_roi=None, folder='.'):
     return masks, masks_image
 
 
+def generate_html(image_path1, image_path2, output_path):
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Images Viewer</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }}
+        .image-container {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+        }}
+        .image-wrapper {{
+            background-color: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }}
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }}
+        .image-label {{
+            margin-top: 8px;
+            font-size: 14px;
+            color: #555;
+        }}
+    </style>
+</head>
+<body>
+    <div class="image-container">
+        <div class="image-wrapper">
+            <img src="{image_path1}" alt="Image 1">
+            <p class="image-label">{image_path1}</p>
+        </div>
+        <div class="image-wrapper">
+            <img src="{image_path2}" alt="Image 2">
+            <p class="image-label">{image_path2}</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    with open(output_path, "w") as f:
+        f.write(html_content)

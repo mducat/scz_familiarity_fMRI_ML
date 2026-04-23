@@ -1,0 +1,99 @@
+
+
+######################
+MAX R2: 0.44
+
+
+
+mask = generate_motor_mask()[0]
+
+
+subject = 15
+run_ids = [5]
+
+data_source = MRI(subject, 5, confound_mode="reduced", use_cache=False)
+
+data_source._standardize = "psc"
+data_source._detrend = True
+
+# dataset = Subject(subject, run_ids)
+# dataset.load()
+
+images = data_source.data
+
+# sample_mask = dataset.sample_mask
+
+labels = pd.read_csv(f"labels/motor/labels_{subject}.csv")
+
+
+events = pd.DataFrame(
+    {'onset': labels["response time"].values / 1000,
+     'trial_type': labels["response"].values,
+     'duration': 1.5}
+)
+
+"""diff = np.where(np.diff(labels["response"]) != 0)[0]
+times_index = np.insert(diff, 0, 0)
+
+values = labels["response"][diff].values
+onsets = labels["response time"][times_index[:-1]].values / 1000
+d_times = labels["response time"][times_index].values
+
+durations = (d_times[1:] - d_times[:-1]) / 1000
+
+
+events = pd.DataFrame(
+    {'onset': onsets,
+     'trial_type': values,
+     'duration': durations}
+)"""
+
+repetition_time = dataset.repetition_time
+
+fmri_glm = FirstLevelModel(
+    t_r=repetition_time,
+    smoothing_fwhm=6,
+    drift_model="cosine",
+    hrf_model="spm + derivative + dispersion",
+    standardize=False,
+    signal_scaling=False,
+    mask_img=dataset.brain_mask,
+    minimize_memory=False,
+    noise_model="ar1",
+    slice_time_ref=0.5,
+    n_jobs=-1,
+    verbose=1,
+)
+
+fmri_glm = fmri_glm.fit(images, events)  # , sample_masks=sample_mask
+
+fmri_r2 = mask.transform(fmri_glm.r_square[0])
+
+plot_r2(fmri_r2[0])
+
+real_timeseries = mask.transform(images)
+predicted_timeseries = mask.transform(fmri_glm.predicted[0])
+
+best_voxel_pos = np.argmax(fmri_r2)
+
+real_voxel = real_timeseries[:, best_voxel_pos]
+pred_voxel = predicted_timeseries[:, best_voxel_pos]
+
+plot_timeseries_list(real_voxel, pred_voxel, labels=["true", "predicted"], repetition_time=repetition_time, events=events)
+
+
+
+
+
+######################
+######################
+######################
+######################
+######################
+
+
+
+
+
+
+

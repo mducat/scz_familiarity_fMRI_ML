@@ -51,6 +51,9 @@ def parse_run(run_lines):
         response = find_matching(croix, "image response")
         btn = find_matching(croix, "bouton_")
 
+        if not response:
+            continue
+
         resp_time = parse_time(croix[response[0]])
 
         resp = 1 if btn else 0
@@ -98,7 +101,7 @@ def cmp(sub_id):
 
 
 for i in range(1, 34):
-    motor = parse(1)
+    motor = parse(i)
 
     with open(f"../labels/motor/labels_{i}.csv", "w", newline="") as file:
         writer = csv.writer(file)
